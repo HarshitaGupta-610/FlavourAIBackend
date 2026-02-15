@@ -1051,13 +1051,16 @@ app.get("/", (req, res) => {
   res.send("FlavourAI backend is running 🚀");
 });
 
-// For local development
+// For local development only
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5051;
   app.listen(PORT, () => {
     console.log(`Backend running on http://localhost:${PORT}`);
   });
+} else {
+  // For Vercel production - ensure it doesn't try to listen
+  // Vercel will handle the server lifecycle
 }
 
-// Export for Vercel
+// Export for Vercel serverless
 export default app;
