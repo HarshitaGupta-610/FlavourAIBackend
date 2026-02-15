@@ -11,6 +11,20 @@ const API_KEY = process.env.RECIPE_API_KEY || "Bearer gV1LSac1moHdP1dKVfLYlxeWjR
 const FLAVOR_BASE_URL = process.env.FLAVOR_API_BASE_URL || "http://192.168.1.92:6969/flavordb";
 const FLAVOR_API_KEY = process.env.FLAVOR_API_KEY || "Bearer EakuMCplIpn3LWZuhhD9hN5PPZo4xaQ_EOAlgLS3bU8Fez7_";
 
+// Helper function to fetch with timeout
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeout);
+    return response;
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+};
+
 const FALLBACK_MEALS = [
   { 
     Recipe_title: "Butter Chicken", 
@@ -343,109 +357,134 @@ app.post("/api/meals", async (req, res) => {
     const useProteinMax = defaults.protMax;
 
     async function fetchCuisine(region) {
-      const r = mapCuisineRegion(region);
-      const field = "total_time";
-      const min = 0;
-      const max = 259260;
-      const continent = r === "Indian" ? "Asian" : "";
-      const subRegion = r === "Indian" ? "Indian" : "";
-      const url = `${BASE_URL}/recipe2-api/recipes_cuisine/cuisine/${encodeURIComponent(
-        r === "Indian" ? "Indian Subcontinent" : r
-      )}?field=${encodeURIComponent(field)}&min=${encodeURIComponent(
-        min
-      )}&max=${encodeURIComponent(max)}&continent=${encodeURIComponent(
-        continent
-      )}&subRegion=${encodeURIComponent(subRegion)}&page=1&page_size=12`;
-      const response = await fetch(url, {
-        headers: {
-          Authorization: API_KEY,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        return { ok: false, status: response.status, text };
-      }
-      const json = await response.json();
-      return { ok: true, json };
-    }
-
-    async function fetchCalories(min, max) {
-      const url = `${BASE_URL}/recipe2-api/recipes-calories/calories?minCalories=${encodeURIComponent(
-        min ?? 0
-      )}&maxCalories=${encodeURIComponent(max ?? 1000000)}&limit=12`;
-      const response = await fetch(url, {
-        headers: {
-          Authorization: API_KEY,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        return { ok: false, status: response.status, text };
-      }
-      const json = await response.json();
-      return { ok: true, json };
-    }
-
-    async function fetchProtein(min, max) {
-      const url = `${BASE_URL}/recipe2-api/protein/protein-range?min=${encodeURIComponent(
-        min ?? 0
-      )}&max=${encodeURIComponent(max ?? 1000)}&page=1&limit=12`;
-      const response = await fetch(url, {
-        headers: {
-          Authorization: API_KEY,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        return { ok: false, status: response.status, text };
-      }
-      const json = await response.json();
-      return { ok: true, json };
-    }
-
-    async function fetchDiet(d, region) {
-      const apiDiet = normalizeDiet(d);
-      if (!apiDiet) return { ok: true, json: { data: [] } };
-
-      const regionValue = region
-        ? mapCuisineRegion(region) === "Indian"
-          ? "Indian Subcontinent"
-          : mapCuisineRegion(region)
-        : null;
-
-      const buildUrl = (useRegion) =>
-        useRegion && regionValue
-          ? `${BASE_URL}/recipe2-api/recipe/region-diet/region-diet?region=${encodeURIComponent(
-              regionValue
-            )}&diet=${encodeURIComponent(apiDiet)}&limit=12`
-          : `${BASE_URL}/recipe2-api/recipe-diet/recipe-diet?diet=${encodeURIComponent(
-              apiDiet
-            )}&limit=12`;
-
-      const tryFetch = async (useRegion) => {
-        const url = buildUrl(useRegion);
-        const response = await fetch(url, {
+      try {
+        const r = mapCuisineRegion(region);
+        const field = "total_time";
+        const min = 0;
+        const max = 259260;
+        const continent = r === "Indian" ? "Asian" : "";
+        const subRegion = r === "Indian" ? "Indian" : "";
+        const url = `${BASE_URL}/recipe2-api/recipes_cuisine/cuisine/${encodeURIComponent(
+          r === "Indian" ? "Indian Subcontinent" : r
+        )}?field=${encodeURIComponent(field)}&min=${encodeURIComponent(
+          min
+        )}&max=${encodeURIComponent(max)}&continent=${encodeURIComponent(
+          continent
+        )}&subRegion=${encodeURIComponent(subRegion)}&page=1&page_size=12`;
+        const response = await fetchWithTimeout(url, {
           headers: {
             Authorization: API_KEY,
             "Content-Type": "application/json",
           },
-        });
+        }, 8000);
         if (!response.ok) {
           const text = await response.text();
           return { ok: false, status: response.status, text };
         }
         const json = await response.json();
         return { ok: true, json };
-      };
-
-      const regionResp = regionValue ? await tryFetch(true) : null;
-      if (regionResp?.ok && extractList(regionResp.json).length > 0) {
-        return regionResp;
+      } catch (err) {
+        console.error("fetchCuisine error:", err.message);
+        return { ok: false, error: err.message };
       }
-      return tryFetch(false);
+    }
+
+    async function fetchCalories(min, max) {
+      try {
+        const url = `${BASE_URL}/recipe2-api/recipes-calories/calories?minCalories=${encodeURIComponent(
+          min ?? 0
+        )}&maxCalories=${encodeURIComponent(max ?? 1000000)}&limit=12`;
+        const response = await fetchWithTimeout(url, {
+          headers: {
+            Authorization: API_KEY,
+            "Content-Type": "application/json",
+          },
+        }, 8000);
+        if (!response.ok) {
+          const text = await response.text();
+          return { ok: false, status: response.status, text };
+        }
+        const json = await response.json();
+        return { ok: true, json };
+      } catch (err) {
+        console.error("fetchCalories error:", err.message);
+        return { ok: false, error: err.message };
+      }
+    }
+
+    async function fetchProtein(min, max) {
+      try {
+        const url = `${BASE_URL}/recipe2-api/protein/protein-range?min=${encodeURIComponent(
+          min ?? 0
+        )}&max=${encodeURIComponent(max ?? 1000)}&page=1&limit=12`;
+        const response = await fetchWithTimeout(url, {
+          headers: {
+            Authorization: API_KEY,
+            "Content-Type": "application/json",
+          },
+        }, 8000);
+        if (!response.ok) {
+          const text = await response.text();
+          return { ok: false, status: response.status, text };
+        }
+        const json = await response.json();
+        return { ok: true, json };
+      } catch (err) {
+        console.error("fetchProtein error:", err.message);
+        return { ok: false, error: err.message };
+      }
+    }
+
+    async function fetchDiet(d, region) {
+      try {
+        const apiDiet = normalizeDiet(d);
+        if (!apiDiet) return { ok: true, json: { data: [] } };
+
+        const regionValue = region
+          ? mapCuisineRegion(region) === "Indian"
+            ? "Indian Subcontinent"
+            : mapCuisineRegion(region)
+          : null;
+
+        const buildUrl = (useRegion) =>
+          useRegion && regionValue
+            ? `${BASE_URL}/recipe2-api/recipe/region-diet/region-diet?region=${encodeURIComponent(
+                regionValue
+              )}&diet=${encodeURIComponent(apiDiet)}&limit=12`
+            : `${BASE_URL}/recipe2-api/recipe-diet/recipe-diet?diet=${encodeURIComponent(
+                apiDiet
+              )}&limit=12`;
+
+        const tryFetch = async (useRegion) => {
+          try {
+            const url = buildUrl(useRegion);
+            const response = await fetchWithTimeout(url, {
+              headers: {
+                Authorization: API_KEY,
+                "Content-Type": "application/json",
+              },
+            }, 8000);
+            if (!response.ok) {
+              const text = await response.text();
+              return { ok: false, status: response.status, text };
+            }
+            const json = await response.json();
+            return { ok: true, json };
+          } catch (err) {
+            console.error("fetchDiet error:", err.message);
+            return { ok: false, error: err.message };
+          }
+        };
+
+        const regionResp = regionValue ? await tryFetch(true) : null;
+        if (regionResp?.ok && extractList(regionResp.json).length > 0) {
+          return regionResp;
+        }
+        return tryFetch(false);
+      } catch (err) {
+        console.error("fetchDiet outer error:", err.message);
+        return { ok: false, error: err.message };
+      }
     }
 
     async function generateMealsWithLLM({ cuisine, diet, caloriesMin, caloriesMax, proteinMin, proteinMax }) {
