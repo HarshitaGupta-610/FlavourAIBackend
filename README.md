@@ -64,16 +64,4 @@ npm install
 npm run dev
 ```
 
-Backend runs on `http://localhost:5051`
 
-### Testing the Deployed API
-
-```bash
-curl https://your-project.vercel.app/
-```
-
-```bash
-curl -X POST https://your-project.vercel.app/api/meals \
-  -H "Content-Type: application/json" \
-  -d '{"cuisine": "Indian", "diet": "Vegan"}'
-```
